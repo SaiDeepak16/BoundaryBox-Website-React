@@ -27,6 +27,7 @@ interface Game {
 interface TimeSlot {
   start: string
   end: string
+  duration: number
 }
 
 export default function BookPage() {
@@ -61,10 +62,8 @@ export default function BookPage() {
   }, [formData.gameId, formData.bookingDate])
 
   useEffect(() => {
-    if (formData.gameId && formData.startTime && formData.endTime) {
-      calculateCost()
-    }
-  }, [formData.gameId, formData.startTime, formData.endTime])
+    calculateCost()
+  }, [selectedGame, formData.startTime, formData.endTime, availableSlots])
 
   const fetchGames = async () => {
     try {
@@ -97,20 +96,22 @@ export default function BookPage() {
     }
   }
 
-  const calculateCost = async () => {
-    if (!formData.gameId || !formData.startTime || !formData.endTime) return
+  const calculateCost = () => {
+    if (!selectedGame || !formData.startTime || !formData.endTime) {
+      setEstimatedCost(0)
+      return
+    }
 
-    try {
-      const { data } = await bookingService.calculateBookingCost(
-        formData.gameId,
-        formData.startTime,
-        formData.endTime
-      )
-      if (data) {
-        setEstimatedCost(data)
-      }
-    } catch (error) {
-      console.error('Error calculating cost:', error)
+    // Find the selected slot to get the duration
+    const selectedSlot = availableSlots.find(
+      slot => slot.start === formData.startTime && slot.end === formData.endTime
+    )
+
+    if (selectedSlot) {
+      const cost = Math.round(selectedGame.price_per_hour * selectedSlot.duration)
+      setEstimatedCost(cost)
+    } else {
+      setEstimatedCost(0)
     }
   }
 
@@ -193,25 +194,25 @@ export default function BookPage() {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Book a Game</h1>
+        <div className="container mx-auto px-4 py-4 md:py-8">
+          <div className="mb-6 md:mb-8">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Book a Game</h1>
             <p className="text-gray-600">Select your preferred game, date, and time slot</p>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-8">
+          <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Booking Form */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 order-2 lg:order-1">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center text-lg md:text-xl">
                     <Calendar className="mr-2 h-5 w-5" />
                     Booking Details
                   </CardTitle>
                   <CardDescription>Fill in the details for your booking</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                <CardContent className="pt-0">
+                  <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
                     {/* Game Selection */}
                     <div>
                       <Label htmlFor="game">Select Game *</Label>
@@ -243,47 +244,129 @@ export default function BookPage() {
                       />
                     </div>
 
-                    {/* Time Selection */}
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="startTime">Start Time *</Label>
-                        <Select 
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, startTime: value }))}
-                          disabled={!formData.bookingDate || availableSlots.length === 0}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select start time" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableSlots.map((slot) => (
-                              <SelectItem key={slot.start} value={slot.start}>
-                                {slot.start}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    {/* Time Slot Selection */}
+                    <div>
+                      <Label>Available Time Slots *</Label>
+                      <p className="text-sm text-gray-600 mb-3">Select your preferred time slot</p>
 
-                      <div>
-                        <Label htmlFor="endTime">End Time *</Label>
-                        <Select 
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, endTime: value }))}
-                          disabled={!formData.startTime}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select end time" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableSlots
-                              .filter(slot => slot.start >= formData.startTime)
-                              .map((slot) => (
-                                <SelectItem key={slot.end} value={slot.end}>
-                                  {slot.end}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {availableSlots.length > 0 ? (
+                        <div className="space-y-4">
+                          {/* Mobile: Show as list, Desktop: Show as grid */}
+                          <div className="block md:hidden">
+                            <div className="space-y-3 max-h-80 overflow-y-auto">
+                              {availableSlots
+                                .sort((a, b) => a.start.localeCompare(b.start) || a.duration - b.duration)
+                                .map((slot) => {
+                                  const isSelected = formData.startTime === slot.start && formData.endTime === slot.end
+                                  const durationText = slot.duration === 1 ? '1 hour' :
+                                                     slot.duration === 1.5 ? '1.5 hours' :
+                                                     `${slot.duration} hours`
+
+                                  return (
+                                    <button
+                                      key={`${slot.start}-${slot.end}`}
+                                      type="button"
+                                      onClick={() => setFormData(prev => ({
+                                        ...prev,
+                                        startTime: slot.start,
+                                        endTime: slot.end
+                                      }))}
+                                      className={`w-full p-4 text-left rounded-lg border transition-all ${
+                                        isSelected
+                                          ? 'border-green-500 bg-green-50 text-green-700 ring-2 ring-green-200'
+                                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <div className="text-base font-medium">
+                                            {slot.start} - {slot.end}
+                                          </div>
+                                          <div className="text-sm text-gray-500">
+                                            {durationText}
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-lg font-bold text-green-600">
+                                            ₹{selectedGame ? Math.round(selectedGame.price_per_hour * slot.duration) : 0}
+                                          </div>
+                                          {isSelected && (
+                                            <div className="text-xs text-green-600">Selected</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                            </div>
+                          </div>
+
+                          {/* Desktop: Group by start time */}
+                          <div className="hidden md:block">
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
+                              {Array.from(new Set(availableSlots.map(slot => slot.start)))
+                                .sort()
+                                .map(startTime => {
+                                  const slotsForStartTime = availableSlots
+                                    .filter(slot => slot.start === startTime)
+                                    .sort((a, b) => a.duration - b.duration)
+
+                                  return (
+                                    <div key={startTime} className="space-y-2">
+                                      <h4 className="text-sm font-medium text-gray-700 sticky top-0 bg-white py-1">
+                                        From {startTime}
+                                      </h4>
+                                      {slotsForStartTime.map((slot) => {
+                                        const isSelected = formData.startTime === slot.start && formData.endTime === slot.end
+                                        const durationText = slot.duration === 1 ? '1h' :
+                                                           slot.duration === 1.5 ? '1.5h' :
+                                                           `${slot.duration}h`
+
+                                        return (
+                                          <button
+                                            key={`${slot.start}-${slot.end}`}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({
+                                              ...prev,
+                                              startTime: slot.start,
+                                              endTime: slot.end
+                                            }))}
+                                            className={`w-full p-3 text-left rounded-lg border transition-all ${
+                                              isSelected
+                                                ? 'border-green-500 bg-green-50 text-green-700 ring-2 ring-green-200'
+                                                : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                                            }`}
+                                          >
+                                            <div className="text-sm font-medium">
+                                              {slot.start} - {slot.end}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                              {durationText}
+                                            </div>
+                                            <div className="text-xs text-green-600 font-medium">
+                                              ₹{selectedGame ? Math.round(selectedGame.price_per_hour * slot.duration) : 0}
+                                            </div>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                })}
+                            </div>
+                          </div>
+                        </div>
+                      ) : formData.bookingDate ? (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                          <Clock className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-500">No available slots for this date</p>
+                          <p className="text-sm text-gray-400">Try selecting a different date</p>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                          <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-500">Select a date to see available slots</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Notes */}
@@ -297,63 +380,111 @@ export default function BookPage() {
                       />
                     </div>
 
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={submitting || !formData.gameId || !formData.bookingDate || !formData.startTime || !formData.endTime}
-                    >
-                      {submitting ? 'Creating Booking...' : 'Create Booking'}
-                    </Button>
+                    <div className="pt-4 border-t">
+                      <Button
+                        type="submit"
+                        className="w-full h-12 text-base font-medium"
+                        disabled={submitting || !formData.gameId || !formData.bookingDate || !formData.startTime || !formData.endTime}
+                      >
+                        {submitting ? (
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Creating Booking...
+                          </div>
+                        ) : (
+                          `Create Booking${estimatedCost > 0 ? ` - ₹${estimatedCost}` : ''}`
+                        )}
+                      </Button>
+
+                      {/* Mobile: Show quick summary */}
+                      {formData.startTime && formData.endTime && (
+                        <div className="mt-3 p-3 bg-green-50 rounded-lg md:hidden">
+                          <div className="text-sm text-green-800">
+                            <div className="font-medium">Selected: {formData.startTime} - {formData.endTime}</div>
+                            {estimatedCost > 0 && (
+                              <div>Total: ₹{estimatedCost}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </form>
                 </CardContent>
               </Card>
             </div>
 
             {/* Booking Summary */}
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
+            <div className="order-1 lg:order-2">
+              <Card className="sticky top-4">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center text-lg md:text-xl">
                     <DollarSign className="mr-2 h-5 w-5" />
                     Booking Summary
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   {selectedGame ? (
                     <div className="space-y-4">
                       <div>
-                        <h3 className="font-semibold">{selectedGame.name}</h3>
-                        <p className="text-sm text-gray-600">{selectedGame.description}</p>
+                        <h3 className="font-semibold text-lg">{selectedGame.name}</h3>
+                        <p className="text-sm text-gray-600 line-clamp-2">{selectedGame.description}</p>
                       </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Price per hour:</span>
-                          <span>₹{selectedGame.price_per_hour}</span>
+
+                      <div className="space-y-3 text-sm">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <div className="text-gray-600">Price/hour</div>
+                            <div className="font-semibold">₹{selectedGame.price_per_hour}</div>
+                          </div>
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <div className="text-gray-600">Max players</div>
+                            <div className="font-semibold">{selectedGame.max_players}</div>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Max players:</span>
-                          <span>{selectedGame.max_players}</span>
-                        </div>
+
                         {formData.bookingDate && (
-                          <div className="flex justify-between">
-                            <span>Date:</span>
-                            <span>{new Date(formData.bookingDate).toLocaleDateString()}</span>
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <div className="text-blue-600 text-xs font-medium">BOOKING DATE</div>
+                            <div className="font-semibold text-blue-800">
+                              {new Date(formData.bookingDate).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </div>
                           </div>
                         )}
+
                         {formData.startTime && formData.endTime && (
-                          <div className="flex justify-between">
-                            <span>Time:</span>
-                            <span>{formData.startTime} - {formData.endTime}</span>
+                          <div className="bg-green-50 p-3 rounded-lg">
+                            <div className="text-green-600 text-xs font-medium">SELECTED TIME</div>
+                            <div className="font-semibold text-green-800">
+                              {formData.startTime} - {formData.endTime}
+                            </div>
+                            {(() => {
+                              const selectedSlot = availableSlots.find(
+                                slot => slot.start === formData.startTime && slot.end === formData.endTime
+                              )
+                              return selectedSlot && (
+                                <div className="text-green-600 text-xs">
+                                  Duration: {selectedSlot.duration === 1 ? '1 hour' :
+                                           selectedSlot.duration === 1.5 ? '1.5 hours' :
+                                           `${selectedSlot.duration} hours`}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>
-                      
+
                       {estimatedCost > 0 && (
                         <div className="border-t pt-4">
-                          <div className="flex justify-between font-semibold">
-                            <span>Estimated Total:</span>
-                            <span>₹{estimatedCost}</span>
+                          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-700 font-medium">Total Amount:</span>
+                              <span className="text-2xl font-bold text-green-600">₹{estimatedCost}</span>
+                            </div>
                           </div>
                         </div>
                       )}

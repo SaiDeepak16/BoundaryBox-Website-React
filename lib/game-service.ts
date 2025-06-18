@@ -153,24 +153,55 @@ export class GameService {
 
       if (error) throw error
 
-      // Define standard time slots (you can customize this)
-      const standardSlots = [
-        { start: '06:00', end: '08:00' },
-        { start: '08:00', end: '10:00' },
-        { start: '10:00', end: '12:00' },
-        { start: '12:00', end: '14:00' },
-        { start: '14:00', end: '16:00' },
-        { start: '16:00', end: '18:00' },
-        { start: '18:00', end: '20:00' },
-        { start: '20:00', end: '22:00' }
-      ]
+      // Generate time slots with 30-minute intervals from 6:00 AM to 10:00 PM
+      const generateTimeSlots = () => {
+        const slots = []
+        const startHour = 6 // 6:00 AM
+        const endHour = 22 // 10:00 PM
 
-      // Filter out booked slots
-      const availableSlots = standardSlots.filter(slot => {
+        for (let hour = startHour; hour < endHour; hour++) {
+          // Add slots for :00 and :30 minutes
+          for (let minute = 0; minute < 60; minute += 30) {
+            const startTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+
+            // Generate possible end times (1 hour, 1.5 hours, 2 hours, etc.)
+            for (let duration = 1; duration <= 4; duration += 0.5) {
+              const endHour = hour + Math.floor(duration)
+              const endMinute = minute + ((duration % 1) * 60)
+
+              let finalEndHour = endHour
+              let finalEndMinute = endMinute
+
+              if (finalEndMinute >= 60) {
+                finalEndHour += 1
+                finalEndMinute -= 60
+              }
+
+              // Don't go beyond 10:00 PM
+              if (finalEndHour > 22) break
+
+              const endTime = `${finalEndHour.toString().padStart(2, '0')}:${finalEndMinute.toString().padStart(2, '0')}`
+
+              slots.push({
+                start: startTime,
+                end: endTime,
+                duration: duration
+              })
+            }
+          }
+        }
+
+        return slots
+      }
+
+      const allPossibleSlots = generateTimeSlots()
+
+      // Filter out slots that conflict with existing bookings
+      const availableSlots = allPossibleSlots.filter(slot => {
         return !bookings.some(booking => {
           const bookingStart = booking.start_time
           const bookingEnd = booking.end_time
-          
+
           // Check if there's any overlap
           return (
             (slot.start >= bookingStart && slot.start < bookingEnd) ||

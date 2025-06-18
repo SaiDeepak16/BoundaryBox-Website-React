@@ -256,6 +256,43 @@ export class UserService {
       return { data: null, error }
     }
   }
+  // Get all users with stats (admin only)
+  async getAllUsersWithStats() {
+    try {
+      const { data: users, error: usersError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (usersError) throw usersError
+
+      // Get booking stats for each user
+      const usersWithStats = await Promise.all(
+        users.map(async (user) => {
+          const { data: bookings } = await supabase
+            .from('bookings')
+            .select('total_cost, booking_date, status')
+            .eq('user_id', user.id)
+
+          const totalBookings = bookings?.length || 0
+          const totalSpent = bookings?.filter(b => b.status === 'confirmed').reduce((sum, b) => sum + b.total_cost, 0) || 0
+          const lastBooking = bookings?.length > 0 ? bookings.sort((a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime())[0].booking_date : null
+
+          return {
+            ...user,
+            totalBookings,
+            totalSpent,
+            lastBooking
+          }
+        })
+      )
+
+      return { data: usersWithStats, error: null }
+    } catch (error) {
+      console.error('Error fetching users with stats:', error)
+      return { data: null, error }
+    }
+  }
 }
 
 export const userService = new UserService()

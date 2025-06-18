@@ -114,8 +114,8 @@ export default function Dashboard() {
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardHeader className="text-center">
                   <History className="h-12 w-12 text-purple-600 mx-auto mb-2" />
-                  <CardTitle>History</CardTitle>
-                  <CardDescription>Past bookings</CardDescription>
+                  <CardTitle>All Bookings</CardTitle>
+                  <CardDescription>View all bookings</CardDescription>
                 </CardHeader>
               </Card>
             </Link>

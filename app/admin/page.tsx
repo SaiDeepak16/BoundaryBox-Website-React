@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast'
 import { AddGameModal } from '@/components/admin/add-game-modal'
 import { EditGameModal } from '@/components/admin/edit-game-modal'
 import { DeleteGameDialog } from '@/components/admin/delete-game-dialog'
+import { PendingRequestsModal } from '@/components/admin/pending-requests-modal'
+import Link from 'next/link'
 
 interface BookingWithDetails {
   id: string
@@ -70,6 +72,7 @@ export default function AdminDashboard() {
   const [deletingGame, setDeletingGame] = useState<Game | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingModalOpen, setPendingModalOpen] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
@@ -218,73 +221,82 @@ export default function AdminDashboard() {
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-24"></div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{stats.totalBookings}</div>
-                    <p className="text-xs text-muted-foreground">
-                      All time bookings
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <Link href="/admin/bookings">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{stats.totalBookings}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Click to manage all bookings
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-24"></div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{stats.activeUsers}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Last 30 days
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <Link href="/admin/users">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{stats.activeUsers}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Click to manage users
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded w-20 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-24"></div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
-                    <p className="text-xs text-muted-foreground">
-                      From confirmed bookings
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <Link href="/admin/revenue">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-8 bg-gray-200 rounded w-20 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Click for analytics
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card>
+            <Card
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => setPendingModalOpen(true)}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -299,7 +311,7 @@ export default function AdminDashboard() {
                   <>
                     <div className="text-2xl font-bold">{stats.pendingRequests}</div>
                     <p className="text-xs text-muted-foreground">
-                      {stats.pendingRequests > 0 ? 'Requires attention' : 'All caught up!'}
+                      Click to review
                     </p>
                   </>
                 )}
@@ -646,6 +658,12 @@ export default function AdminDashboard() {
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
           onGameDeleted={handleGameUpdated}
+        />
+
+        <PendingRequestsModal
+          open={pendingModalOpen}
+          onOpenChange={setPendingModalOpen}
+          onRequestsUpdated={fetchDashboardData}
         />
       </div>
     </AuthGuard>

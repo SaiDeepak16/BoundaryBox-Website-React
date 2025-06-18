@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Clock, DollarSign, Search, Filter, Star } from 'lucide-react'
-import { useAuth } from '@/hooks/use-auth'
+import { Calendar, Clock, DollarSign, Search, Filter, User, CheckCircle, XCircle, Eye } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { bookingService } from '@/lib/booking-service'
 import { useToast } from '@/hooks/use-toast'
+import Link from 'next/link'
 
-interface BookingWithGame {
+interface BookingWithDetails {
   id: string
   booking_date: string
   start_time: string
@@ -29,46 +29,45 @@ interface BookingWithGame {
     price_per_hour: number
     max_players: number
   }
+  user: {
+    id: string
+    name: string
+    email: string
+  }
 }
 
-export default function HistoryPage() {
-  const { user } = useAuth()
+export default function AdminBookingsPage() {
   const { toast } = useToast()
-
-  const [bookings, setBookings] = useState<BookingWithGame[]>([])
-  const [filteredBookings, setFilteredBookings] = useState<BookingWithGame[]>([])
+  
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([])
+  const [filteredBookings, setFilteredBookings] = useState<BookingWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [gameFilter, setGameFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user) {
-      fetchBookingHistory()
-    }
-  }, [user])
+    fetchAllBookings()
+  }, [])
 
   useEffect(() => {
     filterBookings()
-  }, [bookings, searchTerm, statusFilter, gameFilter, dateFilter])
+  }, [bookings, searchTerm, statusFilter, dateFilter])
 
-  const fetchBookingHistory = async () => {
-    if (!user) return
-
+  const fetchAllBookings = async () => {
     try {
       setLoading(true)
-
-      // Get all user bookings (both past and upcoming)
-      const { data } = await bookingService.getUserBookings(user.id)
+      
+      const { data } = await bookingService.getAllBookings()
       if (data) {
-        setBookings(data as BookingWithGame[])
+        setBookings(data as BookingWithDetails[])
       }
     } catch (error) {
-      console.error('Error fetching booking history:', error)
+      console.error('Error fetching bookings:', error)
       toast({
         title: "Error",
-        description: "Failed to load booking history",
+        description: "Failed to load bookings",
         variant: "destructive"
       })
     } finally {
@@ -85,6 +84,8 @@ export default function HistoryPage() {
     if (searchTerm) {
       filtered = filtered.filter(booking =>
         booking.game?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.user?.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         booking.notes?.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
@@ -94,32 +95,23 @@ export default function HistoryPage() {
       filtered = filtered.filter(booking => booking.status === statusFilter)
     }
 
-    // Game filter
-    if (gameFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.game?.name === gameFilter)
-    }
-
     // Date filter
     if (dateFilter !== 'all') {
       filtered = filtered.filter(booking => {
         const bookingDate = new Date(booking.booking_date)
         bookingDate.setHours(0, 0, 0, 0)
-
+        
         switch (dateFilter) {
+          case 'today':
+            return bookingDate.getTime() === today.getTime()
           case 'upcoming':
             return bookingDate >= today
           case 'past':
             return bookingDate < today
-          case 'today':
-            return bookingDate.getTime() === today.getTime()
           case 'this_week':
             const weekFromNow = new Date(today)
             weekFromNow.setDate(today.getDate() + 7)
             return bookingDate >= today && bookingDate <= weekFromNow
-          case 'this_month':
-            const monthFromNow = new Date(today)
-            monthFromNow.setMonth(today.getMonth() + 1)
-            return bookingDate >= today && bookingDate <= monthFromNow
           default:
             return true
         }
@@ -130,6 +122,60 @@ export default function HistoryPage() {
     filtered.sort((a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime())
 
     setFilteredBookings(filtered)
+  }
+
+  const handleApproveBooking = async (bookingId: string) => {
+    try {
+      setProcessingId(bookingId)
+      
+      const { error } = await bookingService.approveBooking(bookingId)
+      if (error) {
+        throw error
+      }
+      
+      toast({
+        title: "Success",
+        description: "Booking approved successfully"
+      })
+      
+      fetchAllBookings()
+    } catch (error) {
+      console.error('Error approving booking:', error)
+      toast({
+        title: "Error",
+        description: "Failed to approve booking",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleRejectBooking = async (bookingId: string) => {
+    try {
+      setProcessingId(bookingId)
+      
+      const { error } = await bookingService.cancelBooking(bookingId, 'Rejected by admin')
+      if (error) {
+        throw error
+      }
+      
+      toast({
+        title: "Success",
+        description: "Booking rejected successfully"
+      })
+      
+      fetchAllBookings()
+    } catch (error) {
+      console.error('Error rejecting booking:', error)
+      toast({
+        title: "Error",
+        description: "Failed to reject booking",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingId(null)
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -149,37 +195,26 @@ export default function HistoryPage() {
     }
   }
 
-  const getUniqueGames = () => {
-    const games = bookings.map(booking => booking.game?.name).filter(Boolean)
-    return [...new Set(games)]
-  }
-
-  const calculateTotalSpent = () => {
-    return filteredBookings
-      .filter(booking => booking.status === 'confirmed')
-      .reduce((total, booking) => total + booking.total_cost, 0)
-  }
-
   const getBookingStats = () => {
     const total = filteredBookings.length
     const pending = filteredBookings.filter(b => b.status === 'pending').length
     const confirmed = filteredBookings.filter(b => b.status === 'confirmed').length
-    const completed = filteredBookings.filter(b => b.status === 'completed').length
-    const canceled = filteredBookings.filter(b => b.status === 'canceled').length
-    const noShow = filteredBookings.filter(b => b.status === 'no_show').length
-
-    return { total, pending, confirmed, completed, canceled, noShow }
+    const revenue = filteredBookings
+      .filter(b => b.status === 'confirmed')
+      .reduce((sum, b) => sum + b.total_cost, 0)
+    
+    return { total, pending, confirmed, revenue }
   }
 
   if (loading) {
     return (
-      <AuthGuard requireRole="user">
+      <AuthGuard requireRole="admin">
         <div className="min-h-screen bg-gray-50">
           <Navbar />
           <div className="container mx-auto px-4 py-8">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-              <p className="text-gray-600 mt-4">Loading your booking history...</p>
+              <p className="text-gray-600 mt-4">Loading bookings...</p>
             </div>
           </div>
         </div>
@@ -190,64 +225,71 @@ export default function HistoryPage() {
   const stats = getBookingStats()
 
   return (
-    <AuthGuard requireRole="user">
+    <AuthGuard requireRole="admin">
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">All Bookings</h1>
-            <p className="text-gray-600">View and manage all your game bookings - past, present, and future</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">All Bookings Management</h1>
+                <p className="text-gray-600">Manage and monitor all game bookings</p>
+              </div>
+              <Link href="/admin">
+                <Button variant="outline">
+                  ← Back to Dashboard
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <Card>
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <Calendar className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-gray-600">Total</p>
-                  <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <Calendar className="h-8 w-8 text-blue-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Bookings</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <Clock className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-gray-600">Pending</p>
-                  <p className="text-xl font-bold text-gray-900">{stats.pending}</p>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <Clock className="h-8 w-8 text-yellow-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Pending</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <Star className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-gray-600">Confirmed</p>
-                  <p className="text-xl font-bold text-gray-900">{stats.confirmed}</p>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Confirmed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.confirmed}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <DollarSign className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-gray-600">Total Spent</p>
-                  <p className="text-xl font-bold text-gray-900">₹{calculateTotalSpent()}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <Filter className="h-6 w-6 text-orange-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-gray-600">Showing</p>
-                  <p className="text-xl font-bold text-gray-900">{filteredBookings.length}</p>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Revenue</p>
+                    <p className="text-2xl font-bold text-gray-900">₹{stats.revenue}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -259,30 +301,16 @@ export default function HistoryPage() {
               <CardTitle className="text-lg">Filters & Search</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Search by game or notes..."
+                    placeholder="Search bookings..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
                 </div>
-
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by date" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Dates</SelectItem>
-                    <SelectItem value="upcoming">Upcoming</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="this_week">This Week</SelectItem>
-                    <SelectItem value="this_month">This Month</SelectItem>
-                    <SelectItem value="past">Past</SelectItem>
-                  </SelectContent>
-                </Select>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger>
@@ -298,17 +326,29 @@ export default function HistoryPage() {
                   </SelectContent>
                 </Select>
 
-                <Select value={gameFilter} onValueChange={setGameFilter}>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Filter by game" />
+                    <SelectValue placeholder="Filter by date" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Games</SelectItem>
-                    {getUniqueGames().map((game) => (
-                      <SelectItem key={game} value={game}>{game}</SelectItem>
-                    ))}
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="this_week">This Week</SelectItem>
+                    <SelectItem value="past">Past</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setSearchTerm('')
+                    setStatusFilter('all')
+                    setDateFilter('all')
+                  }}
+                >
+                  Clear Filters
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -319,23 +359,28 @@ export default function HistoryPage() {
               filteredBookings.map((booking) => (
                 <Card key={booking.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-4 mb-2">
+                        <div className="flex items-center space-x-4 mb-3">
                           <h3 className="text-lg font-semibold">{booking.game?.name}</h3>
-                          <div className="flex space-x-2">
-                            <Badge className={getStatusColor(booking.status)}>
-                              {booking.status.replace('_', ' ')}
+                          <Badge className={getStatusColor(booking.status)}>
+                            {booking.status.replace('_', ' ')}
+                          </Badge>
+                          {new Date(booking.booking_date) >= new Date(new Date().toDateString()) && (
+                            <Badge variant="outline" className="text-blue-600 border-blue-600">
+                              Upcoming
                             </Badge>
-                            {new Date(booking.booking_date) >= new Date(new Date().toDateString()) && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-600">
-                                Upcoming
-                              </Badge>
-                            )}
-                          </div>
+                          )}
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 mr-2" />
+                            <div>
+                              <p className="font-medium">{booking.user?.name}</p>
+                              <p className="text-xs">{booking.user?.email}</p>
+                            </div>
+                          </div>
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-2" />
                             {new Date(booking.booking_date).toLocaleDateString()}
@@ -355,13 +400,33 @@ export default function HistoryPage() {
                             <strong>Notes:</strong> {booking.notes}
                           </p>
                         )}
-                      </div>
 
-                      <div className="mt-4 md:mt-0 md:ml-6">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 mt-2">
                           Booked: {new Date(booking.created_at).toLocaleDateString()}
                         </p>
                       </div>
+
+                      {booking.status === 'pending' && (
+                        <div className="flex space-x-2 mt-4 lg:mt-0 lg:ml-6">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveBooking(booking.id)}
+                            disabled={processingId === booking.id}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            {processingId === booking.id ? 'Processing...' : 'Approve'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRejectBooking(booking.id)}
+                            disabled={processingId === booking.id}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -371,16 +436,11 @@ export default function HistoryPage() {
                 <CardContent className="p-12 text-center">
                   <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings found</h3>
-                  <p className="text-gray-600 mb-4">
-                    {searchTerm || statusFilter !== 'all' || gameFilter !== 'all' || dateFilter !== 'all'
+                  <p className="text-gray-600">
+                    {searchTerm || statusFilter !== 'all' || dateFilter !== 'all'
                       ? 'No bookings match your current filters.'
-                      : "You haven't made any bookings yet."}
+                      : 'No bookings have been made yet.'}
                   </p>
-                  {!searchTerm && statusFilter === 'all' && gameFilter === 'all' && dateFilter === 'all' && (
-                    <Button asChild>
-                      <a href="/book">Book Your First Game</a>
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
             )}

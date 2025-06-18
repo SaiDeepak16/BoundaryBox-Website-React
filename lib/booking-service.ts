@@ -271,6 +271,133 @@ export class BookingService {
       return { data: null, error }
     }
   }
+  // Get pending bookings (admin only)
+  async getPendingBookings() {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          game:games(*),
+          user:profiles(*)
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
+      return { data, error }
+    } catch (error) {
+      console.error('Error fetching pending bookings:', error)
+      return { data: null, error }
+    }
+  }
+
+  // Get revenue analytics (admin only)
+  async getRevenueAnalytics(timeFilter: string = 'all') {
+    try {
+      let dateFilter = ''
+      const now = new Date()
+
+      switch (timeFilter) {
+        case 'week':
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          dateFilter = weekAgo.toISOString().split('T')[0]
+          break
+        case 'month':
+          const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+          dateFilter = monthAgo.toISOString().split('T')[0]
+          break
+        case 'year':
+          const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+          dateFilter = yearAgo.toISOString().split('T')[0]
+          break
+      }
+
+      // Get all confirmed bookings
+      let query = supabase
+        .from('bookings')
+        .select(`
+          *,
+          game:games(*),
+          user:profiles(*)
+        `)
+        .eq('status', 'confirmed')
+
+      if (dateFilter) {
+        query = query.gte('booking_date', dateFilter)
+      }
+
+      const { data: bookings, error } = await query.order('booking_date', { ascending: false })
+
+      if (error) throw error
+
+      // Calculate analytics
+      const totalRevenue = bookings?.reduce((sum, booking) => sum + booking.total_cost, 0) || 0
+
+      const today = new Date().toISOString().split('T')[0]
+      const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+
+      const dailyRevenue = bookings?.filter(b => b.booking_date === today).reduce((sum, b) => sum + b.total_cost, 0) || 0
+      const weeklyRevenue = bookings?.filter(b => b.booking_date >= thisWeek).reduce((sum, b) => sum + b.total_cost, 0) || 0
+      const monthlyRevenue = bookings?.filter(b => b.booking_date >= thisMonth).reduce((sum, b) => sum + b.total_cost, 0) || 0
+
+      // Top games by revenue
+      const gameRevenue = bookings?.reduce((acc, booking) => {
+        const gameName = booking.game?.name || 'Unknown'
+        if (!acc[gameName]) {
+          acc[gameName] = { revenue: 0, bookings: 0 }
+        }
+        acc[gameName].revenue += booking.total_cost
+        acc[gameName].bookings += 1
+        return acc
+      }, {} as Record<string, { revenue: number, bookings: number }>) || {}
+
+      const topGames = Object.entries(gameRevenue)
+        .map(([game_name, stats]) => ({ game_name, ...stats }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5)
+
+      // Monthly breakdown
+      const monthlyBreakdown = bookings?.reduce((acc, booking) => {
+        const month = new Date(booking.booking_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
+        if (!acc[month]) {
+          acc[month] = { revenue: 0, bookings: 0 }
+        }
+        acc[month].revenue += booking.total_cost
+        acc[month].bookings += 1
+        return acc
+      }, {} as Record<string, { revenue: number, bookings: number }>) || {}
+
+      const monthlyBreakdownArray = Object.entries(monthlyBreakdown)
+        .map(([month, stats]) => ({ month, ...stats }))
+        .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
+
+      // Recent transactions
+      const recentTransactions = bookings?.slice(0, 10).map(booking => ({
+        id: booking.id,
+        user_name: booking.user?.name || 'Unknown',
+        game_name: booking.game?.name || 'Unknown',
+        amount: booking.total_cost,
+        date: booking.booking_date,
+        status: booking.status
+      })) || []
+
+      const analyticsData = {
+        totalRevenue,
+        monthlyRevenue,
+        weeklyRevenue,
+        dailyRevenue,
+        topGames,
+        monthlyBreakdown: monthlyBreakdownArray,
+        recentTransactions
+      }
+
+      return { data: analyticsData, error: null }
+    } catch (error) {
+      console.error('Error fetching revenue analytics:', error)
+      return { data: null, error }
+    }
+  }
 }
 
 export const bookingService = new BookingService()

@@ -88,7 +88,7 @@ export class BookingService {
         .select(`
           *,
           game:games(*),
-          profile:profiles(*)
+          user:profiles(*)
         `)
         .order('created_at', { ascending: false })
 
@@ -120,7 +120,7 @@ export class BookingService {
         .select(`
           *,
           game:games(*),
-          profile:profiles(*)
+          user:profiles(*)
         `)
         .single()
 

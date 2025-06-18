@@ -128,7 +128,7 @@ export default function AdminBookingsPage() {
     try {
       setProcessingId(bookingId)
       
-      const { error } = await bookingService.approveBooking(bookingId)
+      const { error } = await bookingService.confirmBooking(bookingId)
       if (error) {
         throw error
       }

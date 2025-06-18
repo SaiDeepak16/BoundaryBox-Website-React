@@ -27,6 +27,7 @@ import { AddGameModal } from '@/components/admin/add-game-modal'
 import { EditGameModal } from '@/components/admin/edit-game-modal'
 import { DeleteGameDialog } from '@/components/admin/delete-game-dialog'
 import { PendingRequestsModal } from '@/components/admin/pending-requests-modal'
+import { SettingsForm } from '@/components/admin/settings-form'
 import Link from 'next/link'
 
 interface BookingWithDetails {
@@ -595,52 +596,7 @@ export default function AdminDashboard() {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Settings className="mr-2 h-5 w-5" />
-                    System Settings
-                  </CardTitle>
-                  <CardDescription>Configure your booking system</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="font-semibold mb-2">Operating Hours</h3>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">Opening Time</label>
-                          <input type="time" className="w-full mt-1 p-2 border rounded" defaultValue="08:00" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Closing Time</label>
-                          <input type="time" className="w-full mt-1 p-2 border rounded" defaultValue="22:00" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="font-semibold mb-2">Booking Rules</h3>
-                      <div className="space-y-2">
-                        <label className="flex items-center">
-                          <input type="checkbox" className="mr-2" defaultChecked />
-                          Allow advance booking up to 7 days
-                        </label>
-                        <label className="flex items-center">
-                          <input type="checkbox" className="mr-2" defaultChecked />
-                          Require admin approval for all bookings
-                        </label>
-                        <label className="flex items-center">
-                          <input type="checkbox" className="mr-2" />
-                          Send SMS notifications for booking updates
-                        </label>
-                      </div>
-                    </div>
-
-                    <Button>Save Settings</Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <SettingsForm />
             </TabsContent>
           </Tabs>
         </div>

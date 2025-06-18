@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Calendar, Clock, Trophy, DollarSign } from 'lucide-react'
+import { Calendar, Clock, Trophy, DollarSign, CheckCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useEffect, useState } from 'react'
 import { gameService } from '@/lib/game-service'
 import { bookingService } from '@/lib/booking-service'
+import { supabase } from '@/lib/supabase'
+import { settingsService, SystemSettings } from '@/lib/settings-service'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 
@@ -24,11 +26,7 @@ interface Game {
   max_players: number
 }
 
-interface TimeSlot {
-  start: string
-  end: string
-  duration: number
-}
+
 
 export default function BookPage() {
   const { user } = useAuth()
@@ -37,10 +35,11 @@ export default function BookPage() {
   
   const [games, setGames] = useState<Game[]>([])
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
+  const [existingBookings, setExistingBookings] = useState<{start_time: string, end_time: string}[]>([])
+  const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     gameId: '',
     bookingDate: '',
@@ -48,22 +47,25 @@ export default function BookPage() {
     endTime: '',
     notes: ''
   })
-  
+
   const [estimatedCost, setEstimatedCost] = useState(0)
+  const [timeError, setTimeError] = useState('')
 
   useEffect(() => {
     fetchGames()
+    fetchSettings()
   }, [])
 
   useEffect(() => {
     if (formData.gameId && formData.bookingDate) {
-      fetchAvailableSlots()
+      fetchExistingBookings()
     }
   }, [formData.gameId, formData.bookingDate])
 
   useEffect(() => {
     calculateCost()
-  }, [selectedGame, formData.startTime, formData.endTime, availableSlots])
+    validateTimeSelection()
+  }, [selectedGame, formData.startTime, formData.endTime, existingBookings, settings])
 
   const fetchGames = async () => {
     try {
@@ -78,21 +80,55 @@ export default function BookPage() {
         description: "Failed to load games",
         variant: "destructive"
       })
+    }
+  }
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await settingsService.getSettings()
+
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setSettings(data)
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error)
+      // Use default settings if fetch fails
+      setSettings({
+        opening_time: '06:00',
+        closing_time: '22:00',
+        is_24_7: false,
+        advance_booking_days: 7,
+        require_admin_approval: true,
+        booking_slot_duration: 30,
+        min_booking_duration: 1,
+        max_booking_duration: 4,
+        cancellation_deadline: 2
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchAvailableSlots = async () => {
+  const fetchExistingBookings = async () => {
     if (!formData.gameId || !formData.bookingDate) return
 
     try {
-      const { data } = await gameService.getAvailableTimeSlots(formData.gameId, formData.bookingDate)
-      if (data) {
-        setAvailableSlots(data)
-      }
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('start_time, end_time')
+        .eq('game_id', formData.gameId)
+        .eq('booking_date', formData.bookingDate)
+        .in('status', ['pending', 'confirmed'])
+
+      if (error) throw error
+      setExistingBookings(data || [])
     } catch (error) {
-      console.error('Error fetching available slots:', error)
+      console.error('Error fetching existing bookings:', error)
+      setExistingBookings([])
     }
   }
 
@@ -102,17 +138,135 @@ export default function BookPage() {
       return
     }
 
-    // Find the selected slot to get the duration
-    const selectedSlot = availableSlots.find(
-      slot => slot.start === formData.startTime && slot.end === formData.endTime
-    )
-
-    if (selectedSlot) {
-      const cost = Math.round(selectedGame.price_per_hour * selectedSlot.duration)
+    // Calculate duration in hours
+    const duration = calculateDuration(formData.startTime, formData.endTime)
+    if (duration > 0) {
+      const cost = Math.round(selectedGame.price_per_hour * duration)
       setEstimatedCost(cost)
     } else {
       setEstimatedCost(0)
     }
+  }
+
+  const calculateDuration = (startTime: string, endTime: string): number => {
+    if (!startTime || !endTime || !settings) return 0
+
+    const [startHour, startMinute] = startTime.split(':').map(Number)
+    const [endHour, endMinute] = endTime.split(':').map(Number)
+
+    const startTotalMinutes = startHour * 60 + startMinute
+    let endTotalMinutes = endHour * 60 + endMinute
+
+    // Handle overnight bookings in 24/7 mode
+    if (settings.is_24_7 && endTotalMinutes <= startTotalMinutes) {
+      // Add 24 hours to end time for overnight booking
+      endTotalMinutes += 24 * 60
+    }
+
+    if (endTotalMinutes <= startTotalMinutes) return 0
+
+    return (endTotalMinutes - startTotalMinutes) / 60
+  }
+
+  const validateTimeSelection = () => {
+    setTimeError('')
+
+    if (!formData.startTime || !formData.endTime || !settings) return
+
+    const duration = calculateDuration(formData.startTime, formData.endTime)
+
+    // Check minimum duration from settings
+    if (duration < settings.min_booking_duration) {
+      setTimeError(`Minimum booking duration is ${settings.min_booking_duration} hour${settings.min_booking_duration !== 1 ? 's' : ''}`)
+      return
+    }
+
+    // Check maximum duration from settings
+    if (duration > settings.max_booking_duration) {
+      setTimeError(`Maximum booking duration is ${settings.max_booking_duration} hour${settings.max_booking_duration !== 1 ? 's' : ''}`)
+      return
+    }
+
+    // Check for conflicts with existing bookings
+    const hasConflict = existingBookings.some(booking => {
+      return (
+        (formData.startTime >= booking.start_time && formData.startTime < booking.end_time) ||
+        (formData.endTime > booking.start_time && formData.endTime <= booking.end_time) ||
+        (formData.startTime <= booking.start_time && formData.endTime >= booking.end_time)
+      )
+    })
+
+    if (hasConflict) {
+      setTimeError('Selected time conflicts with an existing booking')
+      return
+    }
+  }
+
+  const generateTimeOptions = () => {
+    if (!settings) return []
+
+    const options = []
+    const slotDuration = settings.booking_slot_duration
+
+    if (settings.is_24_7) {
+      // 24/7 mode: generate slots for full 24 hours
+      for (let minutes = 0; minutes < 24 * 60; minutes += slotDuration) {
+        const hour = Math.floor(minutes / 60)
+        const minute = minutes % 60
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+        options.push(timeString)
+      }
+    } else {
+      // Regular mode: use opening and closing times
+      const [openHour, openMinute] = settings.opening_time.split(':').map(Number)
+      const [closeHour, closeMinute] = settings.closing_time.split(':').map(Number)
+
+      const startTotalMinutes = openHour * 60 + openMinute
+      const endTotalMinutes = closeHour * 60 + closeMinute
+
+      for (let minutes = startTotalMinutes; minutes < endTotalMinutes; minutes += slotDuration) {
+        const hour = Math.floor(minutes / 60)
+        const minute = minutes % 60
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+        options.push(timeString)
+      }
+    }
+
+    return options
+  }
+
+  const isTimeSlotAvailable = (startTime: string, endTime: string) => {
+    // Check if the proposed time slot conflicts with any existing booking
+    return !existingBookings.some(booking => {
+      return (
+        (startTime >= booking.start_time && startTime < booking.end_time) ||
+        (endTime > booking.start_time && endTime <= booking.end_time) ||
+        (startTime <= booking.start_time && endTime >= booking.end_time)
+      )
+    })
+  }
+
+  const getAvailableStartTimes = () => {
+    if (!settings) return []
+
+    const allTimes = generateTimeOptions()
+    return allTimes.filter(time => {
+      // Check if this start time can accommodate at least the minimum duration without conflicts
+      const minDurationLater = addHoursToTime(time, settings.min_booking_duration)
+      return isTimeSlotAvailable(time, minDurationLater)
+    })
+  }
+
+  const addHoursToTime = (timeString: string, hours: number): string => {
+    const [hour, minute] = timeString.split(':').map(Number)
+    const totalMinutes = hour * 60 + minute + (hours * 60)
+    let newHour = Math.floor(totalMinutes / 60)
+    const newMinute = totalMinutes % 60
+
+    // Handle 24-hour wraparound
+    newHour = newHour % 24
+
+    return `${newHour.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`
   }
 
   const handleGameSelect = (gameId: string) => {
@@ -120,6 +274,7 @@ export default function BookPage() {
     setSelectedGame(game || null)
     setFormData(prev => ({ ...prev, gameId, startTime: '', endTime: '' }))
     setEstimatedCost(0)
+    setTimeError('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,6 +293,15 @@ export default function BookPage() {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (timeError) {
+      toast({
+        title: "Error",
+        description: timeError,
         variant: "destructive"
       })
       return
@@ -177,15 +341,25 @@ export default function BookPage() {
     }
   }
 
-  const getTomorrowDate = () => {
+  const getMinDate = () => {
+    const today = new Date()
+
+    // If 24/7 mode is enabled, allow today's bookings
+    if (settings?.is_24_7) {
+      return today.toISOString().split('T')[0]
+    }
+
+    // Otherwise, only allow tomorrow onwards
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     return tomorrow.toISOString().split('T')[0]
   }
 
   const getMaxDate = () => {
+    if (!settings) return new Date().toISOString().split('T')[0]
+
     const maxDate = new Date()
-    maxDate.setDate(maxDate.getDate() + 7) // Allow booking up to 7 days in advance
+    maxDate.setDate(maxDate.getDate() + settings.advance_booking_days)
     return maxDate.toISOString().split('T')[0]
   }
 
@@ -216,9 +390,9 @@ export default function BookPage() {
                     {/* Game Selection */}
                     <div>
                       <Label htmlFor="game">Select Game *</Label>
-                      <Select onValueChange={handleGameSelect} disabled={loading}>
+                      <Select onValueChange={handleGameSelect} disabled={loading || !settings}>
                         <SelectTrigger>
-                          <SelectValue placeholder={loading ? "Loading games..." : "Choose a game"} />
+                          <SelectValue placeholder={loading || !settings ? "Loading..." : "Choose a game"} />
                         </SelectTrigger>
                         <SelectContent>
                           {games.map((game) => (
@@ -236,135 +410,170 @@ export default function BookPage() {
                       <Input
                         type="date"
                         id="date"
-                        min={getTomorrowDate()}
+                        min={getMinDate()}
                         max={getMaxDate()}
                         value={formData.bookingDate}
                         onChange={(e) => setFormData(prev => ({ ...prev, bookingDate: e.target.value }))}
-                        disabled={!formData.gameId}
+                        disabled={!formData.gameId || !settings}
                       />
                     </div>
 
-                    {/* Time Slot Selection */}
-                    <div>
-                      <Label>Available Time Slots *</Label>
-                      <p className="text-sm text-gray-600 mb-3">Select your preferred time slot</p>
+                    {/* Time Selection */}
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Booking Time *</Label>
+                        <p className="text-sm text-gray-600 mb-3">
+                          {settings ? (
+                            settings.is_24_7 ?
+                              `Select start and end time (${settings.booking_slot_duration}-minute intervals, ${settings.min_booking_duration}-${settings.max_booking_duration} hour duration) - 24/7 operation, overnight bookings allowed` :
+                              `Select start and end time (${settings.booking_slot_duration}-minute intervals, ${settings.min_booking_duration}-${settings.max_booking_duration} hour duration)`
+                          ) : (
+                            'Loading booking configuration...'
+                          )}
+                        </p>
+                      </div>
 
-                      {availableSlots.length > 0 ? (
-                        <div className="space-y-4">
-                          {/* Mobile: Show as list, Desktop: Show as grid */}
-                          <div className="block md:hidden">
-                            <div className="space-y-3 max-h-80 overflow-y-auto">
-                              {availableSlots
-                                .sort((a, b) => a.start.localeCompare(b.start) || a.duration - b.duration)
-                                .map((slot) => {
-                                  const isSelected = formData.startTime === slot.start && formData.endTime === slot.end
-                                  const durationText = slot.duration === 1 ? '1 hour' :
-                                                     slot.duration === 1.5 ? '1.5 hours' :
-                                                     `${slot.duration} hours`
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Start Time */}
+                        <div>
+                          <Label htmlFor="startTime">Start Time *</Label>
+                          <Select
+                            value={formData.startTime}
+                            onValueChange={(value) => {
+                              setFormData(prev => {
+                                // Reset end time if it's before or equal to start time
+                                const newEndTime = prev.endTime && value >= prev.endTime ? '' : prev.endTime
+                                return { ...prev, startTime: value, endTime: newEndTime }
+                              })
+                            }}
+                            disabled={!formData.bookingDate || !settings}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select start time" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {generateTimeOptions().map((time) => {
+                                const isAvailable = getAvailableStartTimes().includes(time)
+                                return (
+                                  <SelectItem
+                                    key={time}
+                                    value={time}
+                                    disabled={!isAvailable}
+                                    className={!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}
+                                  >
+                                    {time} {!isAvailable && '(Booked)'}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
+                        {/* End Time */}
+                        <div>
+                          <Label htmlFor="endTime">End Time *</Label>
+                          <Select
+                            value={formData.endTime}
+                            onValueChange={(value) => setFormData(prev => ({ ...prev, endTime: value }))}
+                            disabled={!formData.startTime || !settings}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select end time" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {generateTimeOptions()
+                                .filter(time => {
+                                  if (!formData.startTime || !settings) return false
+                                  const duration = calculateDuration(formData.startTime, time)
+                                  return duration >= settings.min_booking_duration && duration <= settings.max_booking_duration
+                                })
+                                .map((time) => {
+                                  const duration = calculateDuration(formData.startTime, time)
+                                  const durationText = duration === 1 ? '1h' :
+                                                     duration === 1.5 ? '1.5h' :
+                                                     `${duration}h`
+                                  const isAvailable = isTimeSlotAvailable(formData.startTime, time)
                                   return (
-                                    <button
-                                      key={`${slot.start}-${slot.end}`}
-                                      type="button"
-                                      onClick={() => setFormData(prev => ({
-                                        ...prev,
-                                        startTime: slot.start,
-                                        endTime: slot.end
-                                      }))}
-                                      className={`w-full p-4 text-left rounded-lg border transition-all ${
-                                        isSelected
-                                          ? 'border-green-500 bg-green-50 text-green-700 ring-2 ring-green-200'
-                                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
-                                      }`}
+                                    <SelectItem
+                                      key={time}
+                                      value={time}
+                                      disabled={!isAvailable}
+                                      className={!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}
                                     >
-                                      <div className="flex justify-between items-center">
-                                        <div>
-                                          <div className="text-base font-medium">
-                                            {slot.start} - {slot.end}
-                                          </div>
-                                          <div className="text-sm text-gray-500">
-                                            {durationText}
-                                          </div>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-lg font-bold text-green-600">
-                                            ₹{selectedGame ? Math.round(selectedGame.price_per_hour * slot.duration) : 0}
-                                          </div>
-                                          {isSelected && (
-                                            <div className="text-xs text-green-600">Selected</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </button>
+                                      {time} ({durationText}) {!isAvailable && '- Conflicts with booking'}
+                                    </SelectItem>
                                   )
                                 })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Time validation error */}
+                      {timeError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-600">{timeError}</p>
+                        </div>
+                      )}
+
+                      {/* Duration and cost preview */}
+                      {formData.startTime && formData.endTime && !timeError && (
+                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-sm font-medium text-green-800">
+                                {formData.startTime} - {formData.endTime}
+                              </div>
+                              <div className="text-xs text-green-600">
+                                Duration: {(() => {
+                                  const duration = calculateDuration(formData.startTime, formData.endTime)
+                                  return duration === 1 ? '1 hour' :
+                                         duration === 1.5 ? '1.5 hours' :
+                                         `${duration} hours`
+                                })()}
+                              </div>
                             </div>
-                          </div>
-
-                          {/* Desktop: Group by start time */}
-                          <div className="hidden md:block">
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
-                              {Array.from(new Set(availableSlots.map(slot => slot.start)))
-                                .sort()
-                                .map(startTime => {
-                                  const slotsForStartTime = availableSlots
-                                    .filter(slot => slot.start === startTime)
-                                    .sort((a, b) => a.duration - b.duration)
-
-                                  return (
-                                    <div key={startTime} className="space-y-2">
-                                      <h4 className="text-sm font-medium text-gray-700 sticky top-0 bg-white py-1">
-                                        From {startTime}
-                                      </h4>
-                                      {slotsForStartTime.map((slot) => {
-                                        const isSelected = formData.startTime === slot.start && formData.endTime === slot.end
-                                        const durationText = slot.duration === 1 ? '1h' :
-                                                           slot.duration === 1.5 ? '1.5h' :
-                                                           `${slot.duration}h`
-
-                                        return (
-                                          <button
-                                            key={`${slot.start}-${slot.end}`}
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({
-                                              ...prev,
-                                              startTime: slot.start,
-                                              endTime: slot.end
-                                            }))}
-                                            className={`w-full p-3 text-left rounded-lg border transition-all ${
-                                              isSelected
-                                                ? 'border-green-500 bg-green-50 text-green-700 ring-2 ring-green-200'
-                                                : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
-                                            }`}
-                                          >
-                                            <div className="text-sm font-medium">
-                                              {slot.start} - {slot.end}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                              {durationText}
-                                            </div>
-                                            <div className="text-xs text-green-600 font-medium">
-                                              ₹{selectedGame ? Math.round(selectedGame.price_per_hour * slot.duration) : 0}
-                                            </div>
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
-                                  )
-                                })}
-                            </div>
+                            {selectedGame && (
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-green-600">
+                                  ₹{estimatedCost}
+                                </div>
+                                <div className="text-xs text-green-600">
+                                  @ ₹{selectedGame.price_per_hour}/hour
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      ) : formData.bookingDate ? (
-                        <div className="text-center py-8 bg-gray-50 rounded-lg">
-                          <Clock className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500">No available slots for this date</p>
-                          <p className="text-sm text-gray-400">Try selecting a different date</p>
+                      )}
+
+                      {/* Existing bookings info */}
+                      {formData.bookingDate && existingBookings.length > 0 && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="text-sm font-medium text-amber-800 mb-2 flex items-center">
+                            <Clock className="h-4 w-4 mr-1" />
+                            Unavailable time slots for this date:
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {existingBookings.map((booking, index) => (
+                              <div key={index} className="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                                {booking.start_time} - {booking.end_time}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="text-xs text-amber-600 mt-2">
+                            These times are greyed out in the dropdowns above
+                          </div>
                         </div>
-                      ) : (
-                        <div className="text-center py-8 bg-gray-50 rounded-lg">
-                          <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500">Select a date to see available slots</p>
+                      )}
+
+                      {/* No conflicts message */}
+                      {formData.bookingDate && existingBookings.length === 0 && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="text-sm text-green-700 flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            All time slots are available for this date
+                          </div>
                         </div>
                       )}
                     </div>
@@ -384,7 +593,7 @@ export default function BookPage() {
                       <Button
                         type="submit"
                         className="w-full h-12 text-base font-medium"
-                        disabled={submitting || !formData.gameId || !formData.bookingDate || !formData.startTime || !formData.endTime}
+                        disabled={submitting || !formData.gameId || !formData.bookingDate || !formData.startTime || !formData.endTime || !!timeError}
                       >
                         {submitting ? (
                           <div className="flex items-center">
@@ -462,18 +671,14 @@ export default function BookPage() {
                             <div className="font-semibold text-green-800">
                               {formData.startTime} - {formData.endTime}
                             </div>
-                            {(() => {
-                              const selectedSlot = availableSlots.find(
-                                slot => slot.start === formData.startTime && slot.end === formData.endTime
-                              )
-                              return selectedSlot && (
-                                <div className="text-green-600 text-xs">
-                                  Duration: {selectedSlot.duration === 1 ? '1 hour' :
-                                           selectedSlot.duration === 1.5 ? '1.5 hours' :
-                                           `${selectedSlot.duration} hours`}
-                                </div>
-                              )
-                            })()}
+                            <div className="text-green-600 text-xs">
+                              Duration: {(() => {
+                                const duration = calculateDuration(formData.startTime, formData.endTime)
+                                return duration === 1 ? '1 hour' :
+                                       duration === 1.5 ? '1.5 hours' :
+                                       `${duration} hours`
+                              })()}
+                            </div>
                           </div>
                         )}
                       </div>

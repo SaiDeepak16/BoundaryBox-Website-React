@@ -79,7 +79,7 @@ export function PendingRequestsModal({ open, onOpenChange, onRequestsUpdated }: 
     try {
       setProcessingId(bookingId)
       
-      const { error } = await bookingService.approveBooking(bookingId)
+      const { error } = await bookingService.confirmBooking(bookingId)
       if (error) {
         throw error
       }

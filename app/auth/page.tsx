@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Trophy } from 'lucide-react'
@@ -48,14 +48,14 @@ export default function AuthPage() {
     const email = formData.get('email') as string
     const password = formData.get('password') as string
     const name = formData.get('name') as string
-    const role = formData.get('role') as 'user' | 'admin'
 
-    const { error } = await signUp(email, password, name, role)
+    // All new signups default to 'user' role
+    const { error } = await signUp(email, password, name, 'user')
 
     if (error) {
       setError(error.message)
     } else {
-      router.push(role === 'admin' ? '/admin' : '/dashboard')
+      router.push('/dashboard')
     }
 
     setIsLoading(false)
@@ -161,18 +161,6 @@ export default function AuthPage() {
                       placeholder="Create a password"
                       required
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-role">Account Type</Label>
-                    <Select name="role" defaultValue="user">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">Customer</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                   {error && (
                     <Alert variant="destructive">

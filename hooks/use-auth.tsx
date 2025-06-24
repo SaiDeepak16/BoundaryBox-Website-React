@@ -8,8 +8,8 @@ interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string, name: string, role?: 'user' | 'admin') => Promise<any>
+  signIn: (phone: string, password: string) => Promise<any>
+  signUp: (phone: string, password: string, name: string, role?: 'user' | 'admin') => Promise<any>
   signOut: () => Promise<any>
 }
 
@@ -61,13 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signIn = async (email: string, password: string) => {
-    const result = await authService.signIn(email, password)
+  const signIn = async (phone: string, password: string) => {
+    const result = await authService.signIn(phone, password)
     return result
   }
 
-  const signUp = async (email: string, password: string, name: string, role: 'user' | 'admin' = 'user') => {
-    const result = await authService.signUp(email, password, name, role)
+  const signUp = async (phone: string, password: string, name: string, role: 'user' | 'admin' = 'user') => {
+    const result = await authService.signUp(phone, password, name, role)
     return result
   }
 

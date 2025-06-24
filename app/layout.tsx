@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Box Cricket Booking System',
-  description: 'Professional box cricket booking and management system',
+  title: 'Boundary Box - Sports Booking System',
+  description: 'Professional sports booking and management system for cricket, badminton, carrom and more',
 };
 
 export default function RootLayout({

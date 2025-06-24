@@ -4,9 +4,10 @@ import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Trophy, LogOut, Settings, User } from 'lucide-react'
+import { LogOut, Settings, User } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 export function Navbar() {
   const { user, profile, signOut } = useAuth()
@@ -21,9 +22,15 @@ export function Navbar() {
     <nav className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <Link href="/" className="flex items-center space-x-2">
-            <Trophy className="h-8 w-8 text-green-600" />
-            <span className="text-xl font-bold text-gray-900">Box Cricket</span>
+          <Link href="/" className="flex items-center space-x-3">
+            <Image
+              src="/assets/logo.png"
+              alt="Boundary Box Logo"
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain"
+            />
+            <span className="text-xl font-bold text-gray-900">Boundary Box</span>
           </Link>
 
           <div className="flex items-center space-x-4">

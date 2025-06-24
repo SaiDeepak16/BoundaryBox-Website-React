@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Trophy } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 
 export default function AuthPage() {
@@ -25,10 +25,17 @@ export default function AuthPage() {
     setError('')
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
+    const phone = formData.get('phone') as string
     const password = formData.get('password') as string
 
-    const { error } = await signIn(email, password)
+    // Validate phone number format
+    if (!phone.match(/^\+?[1-9]\d{1,14}$/)) {
+      setError('Please enter a valid phone number')
+      setIsLoading(false)
+      return
+    }
+
+    const { error } = await signIn(phone, password)
 
     if (error) {
       setError(error.message)
@@ -45,12 +52,19 @@ export default function AuthPage() {
     setError('')
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
+    const phone = formData.get('phone') as string
     const password = formData.get('password') as string
     const name = formData.get('name') as string
 
+    // Validate phone number format
+    if (!phone.match(/^\+?[1-9]\d{1,14}$/)) {
+      setError('Please enter a valid phone number')
+      setIsLoading(false)
+      return
+    }
+
     // All new signups default to 'user' role
-    const { error } = await signUp(email, password, name, 'user')
+    const { error } = await signUp(phone, password, name, 'user')
 
     if (error) {
       setError(error.message)
@@ -65,9 +79,15 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <Link href="/" className="flex items-center space-x-2 mb-6">
-            <Trophy className="h-8 w-8 text-green-600" />
-            <span className="text-2xl font-bold text-gray-900">Box Cricket</span>
+          <Link href="/" className="flex items-center space-x-3 mb-6">
+            <Image
+              src="/assets/logo.png"
+              alt="Boundary Box Logo"
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain"
+            />
+            <span className="text-2xl font-bold text-gray-900">Boundary Box</span>
           </Link>
           <h1 className="text-3xl font-bold text-center text-gray-900">Welcome</h1>
           <p className="text-gray-600 text-center mt-2">Sign in to your account or create a new one</p>
@@ -90,12 +110,12 @@ export default function AuthPage() {
               <CardContent>
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="signin-phone">Phone Number</Label>
                     <Input
-                      id="signin-email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter your email"
+                      id="signin-phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="Enter your phone number (e.g., +919876543210)"
                       required
                     />
                   </div>
@@ -143,12 +163,12 @@ export default function AuthPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-phone">Phone Number</Label>
                     <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter your email"
+                      id="signup-phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="Enter your phone number (e.g., +919876543210)"
                       required
                     />
                   </div>

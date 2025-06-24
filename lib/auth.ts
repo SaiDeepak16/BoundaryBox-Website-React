@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 export interface Profile {
   id: string
   email: string
+  phone: string
   name: string
   role: 'user' | 'admin'
   created_at: string
@@ -11,14 +12,18 @@ export interface Profile {
 }
 
 export class AuthService {
-  async signUp(email: string, password: string, name: string, role: 'user' | 'admin' = 'user') {
+  async signUp(phone: string, password: string, name: string, role: 'user' | 'admin' = 'user') {
     try {
+      // Create a temporary email using phone number for Supabase auth
+      const email = `${phone.replace(/[^0-9]/g, '')}@boundarybox.temp`
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name,
+            phone,
             role,
             // Add role to app_metadata for JWT claims
             app_metadata: {
@@ -36,8 +41,11 @@ export class AuthService {
     }
   }
 
-  async signIn(email: string, password: string) {
+  async signIn(phone: string, password: string) {
     try {
+      // Convert phone to email format for Supabase auth
+      const email = `${phone.replace(/[^0-9]/g, '')}@boundarybox.temp`
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

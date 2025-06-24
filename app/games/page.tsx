@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trophy, Users, DollarSign, Search, Filter, Calendar, Clock } from 'lucide-react'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Gamepad2, Users, DollarSign, Search, Filter, Calendar, Clock, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { gameService } from '@/lib/game-service'
 import { useToast } from '@/hooks/use-toast'
@@ -38,6 +39,7 @@ export default function GamesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('name')
   const [priceFilter, setPriceFilter] = useState('all')
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   useEffect(() => {
     fetchGames()
@@ -127,6 +129,15 @@ export default function GamesPage() {
     return null
   }
 
+  const clearAllFilters = () => {
+    setSearchTerm('')
+    setSortBy('name')
+    setPriceFilter('all')
+    setIsFilterOpen(false)
+  }
+
+  const hasActiveFilters = searchTerm !== '' || sortBy !== 'name' || priceFilter !== 'all'
+
   if (loading) {
     return (
       <AuthGuard requireRole="user">
@@ -154,8 +165,108 @@ export default function GamesPage() {
             <p className="text-gray-600">Discover and book your favorite games</p>
           </div>
 
-          {/* Filters and Search */}
-          <Card className="mb-6">
+          {/* Mobile Filter Button */}
+          <div className="md:hidden mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center text-sm text-gray-600">
+                <Gamepad2 className="h-4 w-4 mr-2" />
+                {filteredGames.length} games found
+              </div>
+
+              <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="relative">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filters
+                    {hasActiveFilters && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-600 rounded-full"></span>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh]">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center">
+                      <Filter className="h-5 w-5 mr-2" />
+                      Filters & Search
+                    </SheetTitle>
+                    <SheetDescription>
+                      Filter and search games to find what you're looking for
+                    </SheetDescription>
+                  </SheetHeader>
+
+                  <div className="mt-6 space-y-6">
+                    {/* Search */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Search Games</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Search games..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sort By */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Sort By</label>
+                      <Select value={sortBy} onValueChange={setSortBy}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="name">Name (A-Z)</SelectItem>
+                          <SelectItem value="price_low">Price (Low to High)</SelectItem>
+                          <SelectItem value="price_high">Price (High to Low)</SelectItem>
+                          <SelectItem value="popular">Most Popular</SelectItem>
+                          <SelectItem value="players">Max Players</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Price Filter */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Price Range</label>
+                      <Select value={priceFilter} onValueChange={setPriceFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Price range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Prices</SelectItem>
+                          <SelectItem value="low">₹0 - ₹200</SelectItem>
+                          <SelectItem value="medium">₹201 - ₹400</SelectItem>
+                          <SelectItem value="high">₹401+</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={clearAllFilters}
+                        className="flex-1"
+                        disabled={!hasActiveFilters}
+                      >
+                        Clear All
+                      </Button>
+                      <Button
+                        onClick={() => setIsFilterOpen(false)}
+                        className="flex-1"
+                      >
+                        Apply Filters
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+
+          {/* Desktop Filters and Search */}
+          <Card className="mb-6 hidden md:block">
             <CardHeader>
               <CardTitle className="text-lg flex items-center">
                 <Filter className="h-5 w-5 mr-2" />
@@ -199,9 +310,21 @@ export default function GamesPage() {
                   </SelectContent>
                 </Select>
 
-                <div className="flex items-center text-sm text-gray-600">
-                  <Trophy className="h-4 w-4 mr-2" />
-                  {filteredGames.length} games found
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Gamepad2 className="h-4 w-4 mr-2" />
+                    {filteredGames.length} games found
+                  </div>
+                  {hasActiveFilters && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="text-xs"
+                    >
+                      Clear
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -222,7 +345,7 @@ export default function GamesPage() {
                           <CardTitle className="text-xl">{game.name}</CardTitle>
                           <CardDescription className="mt-2">{game.description}</CardDescription>
                         </div>
-                        <Trophy className="h-6 w-6 text-yellow-500" />
+                        <Gamepad2 className="h-6 w-6 text-green-500" />
                       </div>
                       
                       <div className="flex flex-wrap gap-2 mt-3">
@@ -283,20 +406,17 @@ export default function GamesPage() {
               })
             ) : (
               <div className="col-span-full text-center py-12">
-                <Trophy className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <Gamepad2 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
                 <p className="text-gray-600 mb-4">
                   {searchTerm || priceFilter !== 'all'
                     ? 'No games match your current filters. Try adjusting your search criteria.'
                     : 'No games are currently available.'}
                 </p>
-                {(searchTerm || priceFilter !== 'all') && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setSearchTerm('')
-                      setPriceFilter('all')
-                    }}
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    onClick={clearAllFilters}
                   >
                     Clear Filters
                   </Button>

@@ -33,6 +33,7 @@ interface BookingWithDetails {
     id: string
     name: string
     email: string
+    phone: string
   }
 }
 
@@ -154,23 +155,104 @@ export default function AdminBookingsPage() {
   const handleRejectBooking = async (bookingId: string) => {
     try {
       setProcessingId(bookingId)
-      
+
       const { error } = await bookingService.cancelBooking(bookingId, 'Rejected by admin')
       if (error) {
         throw error
       }
-      
+
       toast({
         title: "Success",
         description: "Booking rejected successfully"
       })
-      
+
       fetchAllBookings()
     } catch (error) {
       console.error('Error rejecting booking:', error)
       toast({
         title: "Error",
         description: "Failed to reject booking",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleMarkNoShow = async (bookingId: string) => {
+    try {
+      setProcessingId(bookingId)
+
+      const { error } = await bookingService.markNoShow(bookingId)
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "Booking marked as no-show"
+      })
+
+      fetchAllBookings()
+    } catch (error) {
+      console.error('Error marking no-show:', error)
+      toast({
+        title: "Error",
+        description: "Failed to mark as no-show",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleMarkCompleted = async (bookingId: string) => {
+    try {
+      setProcessingId(bookingId)
+
+      const { error } = await bookingService.markCompleted(bookingId)
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "Booking marked as completed"
+      })
+
+      fetchAllBookings()
+    } catch (error) {
+      console.error('Error marking completed:', error)
+      toast({
+        title: "Error",
+        description: "Failed to mark as completed",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleAdminCancel = async (bookingId: string) => {
+    try {
+      setProcessingId(bookingId)
+
+      const { error } = await bookingService.adminCancelBooking(bookingId)
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "Booking cancelled successfully"
+      })
+
+      fetchAllBookings()
+    } catch (error) {
+      console.error('Error cancelling booking:', error)
+      toast({
+        title: "Error",
+        description: "Failed to cancel booking",
         variant: "destructive"
       })
     } finally {
@@ -378,7 +460,8 @@ export default function AdminBookingsPage() {
                             <User className="h-4 w-4 mr-2" />
                             <div>
                               <p className="font-medium">{booking.user?.name}</p>
-                              <p className="text-xs">{booking.user?.email}</p>
+                              <p className="text-xs">{booking.user?.phone}</p>
+                              <p className="text-xs text-gray-500">{booking.user?.email}</p>
                             </div>
                           </div>
                           <div className="flex items-center">
@@ -406,27 +489,71 @@ export default function AdminBookingsPage() {
                         </p>
                       </div>
 
-                      {booking.status === 'pending' && (
-                        <div className="flex space-x-2 mt-4 lg:mt-0 lg:ml-6">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveBooking(booking.id)}
-                            disabled={processingId === booking.id}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            {processingId === booking.id ? 'Processing...' : 'Approve'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleRejectBooking(booking.id)}
-                            disabled={processingId === booking.id}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-2 mt-4 lg:mt-0 lg:ml-6">
+                        {booking.status === 'pending' && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveBooking(booking.id)}
+                              disabled={processingId === booking.id}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              {processingId === booking.id ? 'Processing...' : 'Approve'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRejectBooking(booking.id)}
+                              disabled={processingId === booking.id}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+
+                        {booking.status === 'confirmed' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                              onClick={() => handleMarkCompleted(booking.id)}
+                              disabled={processingId === booking.id}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Mark Completed
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-gray-600 border-gray-600 hover:bg-gray-50"
+                              onClick={() => handleMarkNoShow(booking.id)}
+                              disabled={processingId === booking.id}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Mark No-Show
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleAdminCancel(booking.id)}
+                              disabled={processingId === booking.id}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+
+                        {(booking.status === 'canceled' || booking.status === 'no_show' || booking.status === 'completed') && (
+                          <div className="text-sm text-gray-500 py-2">
+                            {booking.status === 'completed' && 'Booking completed'}
+                            {booking.status === 'canceled' && 'Booking cancelled - slot available'}
+                            {booking.status === 'no_show' && 'No-show - slot available'}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

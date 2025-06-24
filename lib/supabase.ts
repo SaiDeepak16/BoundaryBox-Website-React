@@ -21,6 +21,7 @@ export type Database = {
         Row: {
           id: string
           email: string
+          phone: string
           name: string
           role: 'user' | 'admin'
           created_at: string
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           id: string
           email: string
+          phone: string
           name: string
           role?: 'user' | 'admin'
           created_at?: string
@@ -37,6 +39,7 @@ export type Database = {
         Update: {
           id?: string
           email?: string
+          phone?: string
           name?: string
           role?: 'user' | 'admin'
           created_at?: string
@@ -80,7 +83,7 @@ export type Database = {
           booking_date: string
           start_time: string
           end_time: string
-          status: 'pending' | 'confirmed' | 'canceled' | 'no_show'
+          status: 'pending' | 'confirmed' | 'canceled' | 'no_show' | 'completed'
           total_cost: number
           notes: string | null
           created_at: string
@@ -93,7 +96,7 @@ export type Database = {
           booking_date: string
           start_time: string
           end_time: string
-          status?: 'pending' | 'confirmed' | 'canceled' | 'no_show'
+          status?: 'pending' | 'confirmed' | 'canceled' | 'no_show' | 'completed'
           total_cost?: number
           notes?: string | null
           created_at?: string
@@ -106,7 +109,7 @@ export type Database = {
           booking_date?: string
           start_time?: string
           end_time?: string
-          status?: 'pending' | 'confirmed' | 'canceled' | 'no_show'
+          status?: 'pending' | 'confirmed' | 'canceled' | 'no_show' | 'completed'
           total_cost?: number
           notes?: string | null
           created_at?: string

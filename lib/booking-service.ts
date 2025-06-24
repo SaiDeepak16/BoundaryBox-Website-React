@@ -106,7 +106,7 @@ export class BookingService {
   }
 
   // Update booking status
-  async updateBookingStatus(bookingId: string, status: string, notes?: string) {
+  async updateBookingStatus(bookingId: string, status: 'pending' | 'confirmed' | 'canceled' | 'no_show' | 'completed', notes?: string) {
     try {
       const updateData: BookingUpdate = { status }
       if (notes !== undefined) {
@@ -139,6 +139,21 @@ export class BookingService {
   // Confirm a booking
   async confirmBooking(bookingId: string) {
     return this.updateBookingStatus(bookingId, 'confirmed')
+  }
+
+  // Mark booking as no-show
+  async markNoShow(bookingId: string, notes?: string) {
+    return this.updateBookingStatus(bookingId, 'no_show', notes || 'Customer did not show up')
+  }
+
+  // Mark booking as completed
+  async markCompleted(bookingId: string, notes?: string) {
+    return this.updateBookingStatus(bookingId, 'completed', notes || 'Booking completed successfully')
+  }
+
+  // Admin cancel booking (frees up the slot)
+  async adminCancelBooking(bookingId: string, reason?: string) {
+    return this.updateBookingStatus(bookingId, 'canceled', reason || 'Cancelled by admin')
   }
 
   // Check for booking conflicts
@@ -353,7 +368,11 @@ export class BookingService {
       }, {} as Record<string, { revenue: number, bookings: number }>) || {}
 
       const topGames = Object.entries(gameRevenue)
-        .map(([game_name, stats]) => ({ game_name, ...stats }))
+        .map(([game_name, stats]) => ({
+          game_name,
+          revenue: (stats as { revenue: number, bookings: number }).revenue,
+          bookings: (stats as { revenue: number, bookings: number }).bookings
+        }))
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5)
 
@@ -369,7 +388,11 @@ export class BookingService {
       }, {} as Record<string, { revenue: number, bookings: number }>) || {}
 
       const monthlyBreakdownArray = Object.entries(monthlyBreakdown)
-        .map(([month, stats]) => ({ month, ...stats }))
+        .map(([month, stats]) => ({
+          month,
+          revenue: (stats as { revenue: number, bookings: number }).revenue,
+          bookings: (stats as { revenue: number, bookings: number }).bookings
+        }))
         .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
 
       // Recent transactions

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Calendar, Clock, DollarSign, Search, Filter, Star } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useEffect, useState } from 'react'
@@ -42,6 +43,7 @@ export default function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [gameFilter, setGameFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -151,7 +153,7 @@ export default function HistoryPage() {
 
   const getUniqueGames = () => {
     const games = bookings.map(booking => booking.game?.name).filter(Boolean)
-    return [...new Set(games)]
+    return Array.from(new Set(games))
   }
 
   const calculateTotalSpent = () => {
@@ -170,6 +172,16 @@ export default function HistoryPage() {
 
     return { total, pending, confirmed, completed, canceled, noShow }
   }
+
+  const clearAllFilters = () => {
+    setSearchTerm('')
+    setStatusFilter('all')
+    setGameFilter('all')
+    setDateFilter('all')
+    setIsFilterOpen(false)
+  }
+
+  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || gameFilter !== 'all' || dateFilter !== 'all'
 
   if (loading) {
     return (
@@ -253,10 +265,143 @@ export default function HistoryPage() {
             </Card>
           </div>
 
-          {/* Filters */}
-          <Card className="mb-6">
+          {/* Mobile Filter Button */}
+          <div className="md:hidden mb-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {filteredBookings.length} bookings found
+              </div>
+
+              <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="relative">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filters
+                    {hasActiveFilters && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-600 rounded-full"></span>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh]">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center">
+                      <Filter className="h-5 w-5 mr-2" />
+                      Filters & Search
+                    </SheetTitle>
+                    <SheetDescription>
+                      Filter your booking history to find specific bookings
+                    </SheetDescription>
+                  </SheetHeader>
+
+                  <div className="mt-6 space-y-6">
+                    {/* Search */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Search Bookings</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Search by game or notes..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Date Filter */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Date Range</label>
+                      <Select value={dateFilter} onValueChange={setDateFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by date" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Dates</SelectItem>
+                          <SelectItem value="upcoming">Upcoming</SelectItem>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="this_week">This Week</SelectItem>
+                          <SelectItem value="this_month">This Month</SelectItem>
+                          <SelectItem value="past">Past</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Booking Status</label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="canceled">Canceled</SelectItem>
+                          <SelectItem value="no_show">No Show</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Game Filter */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Game Type</label>
+                      <Select value={gameFilter} onValueChange={setGameFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by game" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Games</SelectItem>
+                          {getUniqueGames().map((game) => (
+                            <SelectItem key={game} value={game}>{game}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={clearAllFilters}
+                        className="flex-1"
+                        disabled={!hasActiveFilters}
+                      >
+                        Clear All
+                      </Button>
+                      <Button
+                        onClick={() => setIsFilterOpen(false)}
+                        className="flex-1"
+                      >
+                        Apply Filters
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+
+          {/* Desktop Filters */}
+          <Card className="mb-6 hidden md:block">
             <CardHeader>
-              <CardTitle className="text-lg">Filters & Search</CardTitle>
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span className="flex items-center">
+                  <Filter className="h-5 w-5 mr-2" />
+                  Filters & Search
+                </span>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="text-xs"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

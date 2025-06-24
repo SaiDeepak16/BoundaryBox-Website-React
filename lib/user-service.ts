@@ -239,14 +239,14 @@ export class UserService {
         .select('id', { count: 'exact' })
         .eq('role', 'admin')
 
-      if (usersError || activeUsersError.error || adminError) {
+      if (usersError || activeUsersError || adminError) {
         throw new Error('Error fetching system statistics')
       }
 
       return {
         data: {
           totalUsers: users?.length || 0,
-          activeUsers: activeUsers.data?.length || 0,
+          activeUsers: activeUsers?.length || 0,
           adminUsers: adminUsers?.length || 0,
           regularUsers: (users?.length || 0) - (adminUsers?.length || 0)
         },
@@ -276,7 +276,7 @@ export class UserService {
 
           const totalBookings = bookings?.length || 0
           const totalSpent = bookings?.filter(b => b.status === 'confirmed').reduce((sum, b) => sum + b.total_cost, 0) || 0
-          const lastBooking = bookings?.length > 0 ? bookings.sort((a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime())[0].booking_date : null
+          const lastBooking = bookings && bookings.length > 0 ? bookings.sort((a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime())[0].booking_date : null
 
           return {
             ...user,

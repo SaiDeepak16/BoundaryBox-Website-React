@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Trophy, Users, Calendar, BarChart3 } from 'lucide-react'
+import { Calendar as CalendarIcon, Users, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
@@ -35,11 +35,18 @@ export default function Home() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Box Cricket Booking System
-          </h1>
+          <div className="flex items-center justify-center mb-6">
+            <img
+              src="/assets/logo.png"
+              alt="Boundary Box Logo"
+              className="h-16 w-16 object-contain mr-4"
+            />
+            <h1 className="text-5xl font-bold text-gray-900">
+              Boundary Box
+            </h1>
+          </div>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Professional sports booking and management platform. Book your slots, manage games, 
+            Professional sports booking and management platform. Book your slots, manage games,
             and track performance with our comprehensive system.
           </p>
           <div className="space-x-4">
@@ -60,7 +67,7 @@ export default function Home() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
-              <Trophy className="h-12 w-12 text-green-600 mx-auto mb-4" />
+              <CalendarIcon className="h-12 w-12 text-green-600 mx-auto mb-4" />
               <CardTitle>Easy Booking</CardTitle>
             </CardHeader>
             <CardContent>
@@ -84,7 +91,7 @@ export default function Home() {
 
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
-              <Calendar className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+              <CalendarIcon className="h-12 w-12 text-purple-600 mx-auto mb-4" />
               <CardTitle>Smart Scheduling</CardTitle>
             </CardHeader>
             <CardContent>

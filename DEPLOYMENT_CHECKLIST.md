@@ -43,12 +43,6 @@
 ### 🔑 Environment Variables Setup
 Add these in Vercel project settings:
 
-```bash
-# Required Variables
-NEXT_PUBLIC_SUPABASE_URL=https://tjqjilftzgexsqlsaejo.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-```
 
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` added
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY` added  
